@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import mongoose from "mongoose";
@@ -15,7 +16,9 @@ import {
   SavedPaperModel,
 } from "../models/Schemas.js";
 
-const DATA_DIR = path.resolve(process.cwd(), "data");
+const DATA_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), "ai-research-data")
+  : path.resolve(process.cwd(), "data");
 const STORE_PATH = path.join(DATA_DIR, "store.json");
 
 function emptyStore() {

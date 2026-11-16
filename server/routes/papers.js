@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { Router } from "express";
@@ -23,7 +24,9 @@ import {
 } from "../services/dataStore.js";
 
 const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
-const UPLOADS_DIR = path.resolve(process.cwd(), "server", "uploads");
+const UPLOADS_DIR = process.env.VERCEL
+  ? path.join(os.tmpdir(), "ai-research-uploads")
+  : path.resolve(process.cwd(), "server", "uploads");
 
 const upload = multer({
   storage: multer.memoryStorage(),

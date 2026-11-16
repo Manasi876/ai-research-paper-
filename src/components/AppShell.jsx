@@ -162,7 +162,7 @@ export function AppShell({
               className="h-8 w-8 rounded-full object-cover border border-slate-200 dark:border-slate-700 shrink-0"
             />
           ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 to-purple-600 text-xs font-semibold text-white shrink-0">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full badge-brand-gradient text-xs font-semibold shrink-0">
               {initials}
             </div>
           )}
@@ -254,7 +254,7 @@ export function AppShell({
             <button
               type="button"
               onClick={() => onNavigate("analyzer")}
-              className="inline-flex h-10 items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-4 text-sm font-medium text-white shadow-xs transition-opacity hover:opacity-95 whitespace-nowrap shrink-0"
+              className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg btn-brand-gradient px-4 text-sm font-medium shadow-xs transition-all whitespace-nowrap shrink-0"
             >
               <Upload className="h-4 w-4" />
               <span className="hidden sm:inline">Upload PDF</span>

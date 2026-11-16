@@ -81,7 +81,7 @@ export function PaperFinderPage({ onSavedPaper }) {
           <button
             type="submit"
             disabled={loading || !query.trim()}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 px-6 text-sm font-semibold text-white hover:opacity-95 disabled:opacity-50 whitespace-nowrap"
+            className="inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg btn-brand-gradient px-6 text-sm font-semibold shadow-xs disabled:cursor-not-allowed disabled:opacity-50 whitespace-nowrap"
           >
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
             <span>Search</span>

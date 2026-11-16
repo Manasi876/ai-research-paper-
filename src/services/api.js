@@ -39,7 +39,11 @@ async function request(url, options = {}, isFormData = false) {
   }
 
   if (!res.ok) {
-    const errMsg = data?.error || `Request failed (${res.status})`;
+    let errMsg = data?.error || `Request failed (${res.status})`;
+    if (res.status === 413 && !data?.error) {
+      errMsg =
+        "File is too large for serverless upload (4.5 MB limit on Vercel). Please upload a smaller PDF.";
+    }
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent("auth:unauthorized"));
     }

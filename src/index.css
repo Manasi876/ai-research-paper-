@@ -19,3 +19,21 @@
     font-family: var(--font-display);
   }
 }
+
+/* Cross-browser sRGB gradient + solid hex fallback (prevents invisible white text if oklab fails) */
+.btn-brand-gradient {
+  background-color: #2563eb;
+  background-image: linear-gradient(90deg, #2563eb 0%, #7c3aed 100%);
+  color: #ffffff;
+}
+
+.btn-brand-gradient:hover:not(:disabled) {
+  background-color: #1d4ed8;
+  background-image: linear-gradient(90deg, #1d4ed8 0%, #6d28d9 100%);
+}
+
+.badge-brand-gradient {
+  background-color: #2563eb;
+  background-image: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+  color: #ffffff;
+}

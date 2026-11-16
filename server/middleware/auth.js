@@ -11,6 +11,13 @@ function getJwtSecret() {
   if (envSecret && envSecret.length >= 16) {
     return envSecret;
   }
+  if (process.env.VERCEL) {
+    const seed =
+      process.env.VERCEL_PROJECT_ID ||
+      process.env.MONGODB_URI ||
+      "ai-in-research-paper-vercel-default";
+    return crypto.createHash("sha256").update(seed).digest("hex");
+  }
   return EPHEMERAL_DEV_SECRET;
 }
 

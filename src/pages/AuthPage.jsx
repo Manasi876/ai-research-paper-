@@ -44,7 +44,7 @@ export function AuthPage() {
     <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <header className="flex h-16 items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-purple-600 text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg badge-brand-gradient">
             <BookOpen className="h-4 w-4" />
           </div>
           <span className="font-display text-base font-bold tracking-tight">
@@ -65,7 +65,7 @@ export function AuthPage() {
         </button>
       </header>
 
-      <div className="flex flex-1 items-center justify-center px-4 py-12">
+      <div className="flex flex-1 items-center justify-center px-4 py-8 sm:py-12">
         <div className="grid w-full max-w-4xl gap-8 lg:grid-cols-2 lg:items-center">
           <div className="space-y-6">
             <div className="flex h-36 w-36 items-center justify-center rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm">
@@ -131,10 +131,10 @@ export function AuthPage() {
                   setError(null);
                   setInfoMessage(null);
                 }}
-                className={`flex-1 rounded-md py-2 text-xs font-semibold transition-colors ${
+                className={`flex-1 cursor-pointer rounded-md py-2 text-xs font-semibold transition-colors ${
                   mode === "login"
-                    ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100"
-                    : "text-slate-600 dark:text-slate-400"
+                    ? "bg-white text-slate-900 shadow-xs border border-slate-200/80 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
                 Sign In
@@ -146,10 +146,10 @@ export function AuthPage() {
                   setError(null);
                   setInfoMessage(null);
                 }}
-                className={`flex-1 rounded-md py-2 text-xs font-semibold transition-colors ${
+                className={`flex-1 cursor-pointer rounded-md py-2 text-xs font-semibold transition-colors ${
                   mode === "register"
-                    ? "bg-white text-slate-900 shadow-xs dark:bg-slate-900 dark:text-slate-100"
-                    : "text-slate-600 dark:text-slate-400"
+                    ? "bg-white text-slate-900 shadow-xs border border-slate-200/80 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                    : "text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
                 Create Account
@@ -238,7 +238,7 @@ export function AuthPage() {
               <button
                 type="submit"
                 disabled={submitting}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-sm font-semibold text-white transition-opacity hover:opacity-95 disabled:opacity-60"
+                className="inline-flex h-11 w-full cursor-pointer items-center justify-center gap-2 rounded-lg btn-brand-gradient px-4 text-sm font-semibold shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
                 <span>

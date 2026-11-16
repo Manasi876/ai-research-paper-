@@ -9,7 +9,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "clean": "rm -rf dist",
-    "lint": "node --check server.js && find server -name '*.js' -exec node --check {} +"
+    "lint": "node --check server.js && find server api -name '*.js' -exec node --check {} +"
   },
   "dependencies": {
     "@google/genai": "^3.3.0",
