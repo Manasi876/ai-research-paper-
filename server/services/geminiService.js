@@ -1,4 +1,9 @@
 import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
+import {
+  analyzePaperLocally,
+  answerQuestionLocally,
+  summarizePaperLocally,
+} from "./localPaperNlp.js";
 
 const EMBEDDING_MODEL = "gemini-embedding-2";
 const LLM_MODEL = "gemini-4-hydrogen";
@@ -12,6 +17,8 @@ function getGeminiApiKey() {
     process.env.GEMINI_API_KEY,
     process.env.GOOGLE_API_KEY,
     process.env.GOOGLE_GEMINI_API_KEY,
+    process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+    process.env.API_KEY,
     process.env.VITE_GEMINI_API_KEY,
   ];
   for (const raw of candidates) {
@@ -256,117 +263,141 @@ export async function extractBibliographicMetadata(fallbackTitle, text) {
 }
 
 export async function analyzeResearchPaper(title, extractedText) {
-  const ai = getGeminiClient();
-  const sample = sampleDocumentText(extractedText, 30000);
+  if (!hasGeminiApiKey()) {
+    return analyzePaperLocally(title, extractedText);
+  }
 
-  const response = await withRetry(() =>
-    ai.models.generateContent({
-      model: LLM_MODEL,
-      contents: `Analyze the following research paper strictly based on its text. If a specific detail (such as dataset information or limitations) is not mentioned in the provided text, clearly state that it is not specified in the paper rather than inventing facts.\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
-      config: {
-        systemInstruction:
-          "You are a rigorous academic research analyst. Produce clear, structured, factual analyses grounded strictly in the provided document text.",
-        responseMimeType: "application/json",
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            overview: { type: Type.STRING },
-            problemStatement: { type: Type.STRING },
-            objectives: { type: Type.STRING },
-            methodology: { type: Type.STRING },
-            technologiesAndAlgorithms: { type: Type.STRING },
-            datasetInfo: { type: Type.STRING },
-            results: { type: Type.STRING },
-            advantages: { type: Type.STRING },
-            limitations: { type: Type.STRING },
-            futureScope: { type: Type.STRING },
-            conclusion: { type: Type.STRING },
-          },
-          required: [
-            "overview",
-            "problemStatement",
-            "objectives",
-            "methodology",
-            "technologiesAndAlgorithms",
-            "datasetInfo",
-            "results",
-            "advantages",
-            "limitations",
-            "futureScope",
-            "conclusion",
-          ],
-        },
-      },
-    })
-  );
+  try {
+    const ai = getGeminiClient();
+    const sample = sampleDocumentText(extractedText, 30000);
 
-  return JSON.parse(response.text || "{}");
-}
-
-export async function summarizeResearchPaper(title, extractedText, format) {
-  const ai = getGeminiClient();
-  const sample = sampleDocumentText(extractedText, 28000);
-
-  if (format === "short") {
     const response = await withRetry(() =>
       ai.models.generateContent({
         model: LLM_MODEL,
-        contents: `Write a clear, student-friendly Short Summary of this research paper in approximately 150 to 200 words using simple English. Explain what problem the paper addresses, how it solves it, and the main outcome—strictly grounded in the provided text.\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
+        contents: `Analyze the following research paper strictly based on its text. If a specific detail (such as dataset information or limitations) is not mentioned in the provided text, clearly state that it is not specified in the paper rather than inventing facts.\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
         config: {
           systemInstruction:
-            "You are an academic summarizer explaining research papers to undergraduate computer science students in simple, clear English. Never invent facts not present in the paper.",
+            "You are a rigorous academic research analyst. Produce clear, structured, factual analyses grounded strictly in the provided document text.",
           responseMimeType: "application/json",
           thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
           responseSchema: {
             type: Type.OBJECT,
             properties: {
-              summaryText: { type: Type.STRING },
+              overview: { type: Type.STRING },
+              problemStatement: { type: Type.STRING },
+              objectives: { type: Type.STRING },
+              methodology: { type: Type.STRING },
+              technologiesAndAlgorithms: { type: Type.STRING },
+              datasetInfo: { type: Type.STRING },
+              results: { type: Type.STRING },
+              advantages: { type: Type.STRING },
+              limitations: { type: Type.STRING },
+              futureScope: { type: Type.STRING },
+              conclusion: { type: Type.STRING },
             },
-            required: ["summaryText"],
+            required: [
+              "overview",
+              "problemStatement",
+              "objectives",
+              "methodology",
+              "technologiesAndAlgorithms",
+              "datasetInfo",
+              "results",
+              "advantages",
+              "limitations",
+              "futureScope",
+              "conclusion",
+            ],
+          },
+        },
+      })
+    );
+
+    return JSON.parse(response.text || "{}");
+  } catch (err) {
+    console.warn(
+      "[geminiService] analyzeResearchPaper fallback used:",
+      err instanceof Error ? err.message : String(err)
+    );
+    return analyzePaperLocally(title, extractedText);
+  }
+}
+
+export async function summarizeResearchPaper(title, extractedText, format) {
+  if (!hasGeminiApiKey()) {
+    return summarizePaperLocally(title, extractedText, format);
+  }
+
+  try {
+    const ai = getGeminiClient();
+    const sample = sampleDocumentText(extractedText, 28000);
+
+    if (format === "short") {
+      const response = await withRetry(() =>
+        ai.models.generateContent({
+          model: LLM_MODEL,
+          contents: `Write a clear, student-friendly Short Summary of this research paper in approximately 150 to 200 words using simple English. Explain what problem the paper addresses, how it solves it, and the main outcome—strictly grounded in the provided text.\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
+          config: {
+            systemInstruction:
+              "You are an academic summarizer explaining research papers to undergraduate computer science students in simple, clear English. Never invent facts not present in the paper.",
+            responseMimeType: "application/json",
+            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                summaryText: { type: Type.STRING },
+              },
+              required: ["summaryText"],
+            },
+          },
+        })
+      );
+
+      const parsed = JSON.parse(response.text || "{}");
+      const summaryText = String(parsed.summaryText || "").trim();
+      const wordCount = summaryText ? summaryText.split(/\s+/).length : 0;
+      return { format: "short", summaryText, wordCount };
+    }
+
+    const response = await withRetry(() =>
+      ai.models.generateContent({
+        model: LLM_MODEL,
+        contents: `Write a clear, comprehensive Detailed Summary of this research paper in simple English for students, strictly from the provided text. Cover the research problem, objectives, proposed methodology, experimental results, and conclusion with 4-6 clear sentences per section.\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
+        config: {
+          systemInstruction:
+            "You are an academic summarizer explaining research papers to undergraduate students in simple, clear English. Never invent results, datasets, or conclusions not present in the paper.",
+          responseMimeType: "application/json",
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              researchProblem: { type: Type.STRING },
+              objectives: { type: Type.STRING },
+              methodology: { type: Type.STRING },
+              results: { type: Type.STRING },
+              conclusion: { type: Type.STRING },
+            },
+            required: [
+              "researchProblem",
+              "objectives",
+              "methodology",
+              "results",
+              "conclusion",
+            ],
           },
         },
       })
     );
 
     const parsed = JSON.parse(response.text || "{}");
-    const summaryText = String(parsed.summaryText || "").trim();
-    const wordCount = summaryText ? summaryText.split(/\s+/).length : 0;
-    return { format: "short", summaryText, wordCount };
+    return { format: "detailed", ...parsed };
+  } catch (err) {
+    console.warn(
+      "[geminiService] summarizeResearchPaper fallback used:",
+      err instanceof Error ? err.message : String(err)
+    );
+    return summarizePaperLocally(title, extractedText, format);
   }
-
-  const response = await withRetry(() =>
-    ai.models.generateContent({
-      model: LLM_MODEL,
-      contents: `Write a clear, comprehensive Detailed Summary of this research paper in simple English for students, strictly from the provided text. Cover the research problem, objectives, proposed methodology, experimental results, and conclusion with 4-6 clear sentences per section.\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
-      config: {
-        systemInstruction:
-          "You are an academic summarizer explaining research papers to undergraduate students in simple, clear English. Never invent results, datasets, or conclusions not present in the paper.",
-        responseMimeType: "application/json",
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            researchProblem: { type: Type.STRING },
-            objectives: { type: Type.STRING },
-            methodology: { type: Type.STRING },
-            results: { type: Type.STRING },
-            conclusion: { type: Type.STRING },
-          },
-          required: [
-            "researchProblem",
-            "objectives",
-            "methodology",
-            "results",
-            "conclusion",
-          ],
-        },
-      },
-    })
-  );
-
-  const parsed = JSON.parse(response.text || "{}");
-  return { format: "detailed", ...parsed };
 }
 
 export async function answerRagQuestion(
@@ -379,43 +410,55 @@ export async function answerRagQuestion(
     return "This information was not found in the uploaded document.";
   }
 
-  const ai = getGeminiClient();
-  const contextBlock = chunks
-    .map((c) => `[Chunk ${c.chunkIndex + 1}, ~Page ${c.pageEstimate}]\n${c.content}`)
-    .join("\n\n---\n\n");
+  if (!hasGeminiApiKey()) {
+    return answerQuestionLocally(question, paperTitle, chunks);
+  }
 
-  const historyBlock =
-    recentHistory.length > 0
-      ? `Recent Conversation Context:\n${recentHistory
-          .slice(-4)
-          .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
-          .join("\n")}\n\n`
-      : "";
+  try {
+    const ai = getGeminiClient();
+    const contextBlock = chunks
+      .map((c) => `[Chunk ${c.chunkIndex + 1}, ~Page ${c.pageEstimate}]\n${c.content}`)
+      .join("\n\n---\n\n");
 
-  const systemInstruction = [
-    "You are an intelligent research paper assistant.",
-    "Answer the user's question STRICTLY and EXCLUSIVELY from the provided document excerpts.",
-    "Do NOT use outside knowledge or extrapolate beyond the uploaded document.",
-    "Cite supporting excerpts inline like [Chunk 2, ~Page 4].",
-    'If the retrieved excerpts do not contain the answer, respond explicitly: "This information was not found in the uploaded document." followed by one brief sentence noting what is missing.',
-  ].join(" ");
+    const historyBlock =
+      recentHistory.length > 0
+        ? `Recent Conversation Context:\n${recentHistory
+            .slice(-4)
+            .map((m) => `${m.role === "user" ? "User" : "Assistant"}: ${m.content}`)
+            .join("\n")}\n\n`
+        : "";
 
-  const prompt = `${historyBlock}Paper Title: ${paperTitle}\n\nRetrieved Document Excerpts:\n${contextBlock}\n\nUser Question: ${question}`;
+    const systemInstruction = [
+      "You are an intelligent research paper assistant.",
+      "Answer the user's question STRICTLY and EXCLUSIVELY from the provided document excerpts.",
+      "Do NOT use outside knowledge or extrapolate beyond the uploaded document.",
+      "Cite supporting excerpts inline like [Chunk 2, ~Page 4].",
+      'If the retrieved excerpts do not contain the answer, respond explicitly: "This information was not found in the uploaded document." followed by one brief sentence noting what is missing.',
+    ].join(" ");
 
-  const response = await withRetry(() =>
-    ai.models.generateContent({
-      model: LLM_MODEL,
-      contents: prompt,
-      config: {
-        systemInstruction,
-        thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-      },
-    })
-  );
+    const prompt = `${historyBlock}Paper Title: ${paperTitle}\n\nRetrieved Document Excerpts:\n${contextBlock}\n\nUser Question: ${question}`;
 
-  return (
-    response.text?.trim() || "This information was not found in the uploaded document."
-  );
+    const response = await withRetry(() =>
+      ai.models.generateContent({
+        model: LLM_MODEL,
+        contents: prompt,
+        config: {
+          systemInstruction,
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+        },
+      })
+    );
+
+    return (
+      response.text?.trim() || "This information was not found in the uploaded document."
+    );
+  } catch (err) {
+    console.warn(
+      "[geminiService] answerRagQuestion fallback used:",
+      err instanceof Error ? err.message : String(err)
+    );
+    return answerQuestionLocally(question, paperTitle, chunks);
+  }
 }
 
 export async function compareResearchPapers(papers) {

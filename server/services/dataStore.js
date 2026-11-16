@@ -515,7 +515,10 @@ export async function listPaperChunks(userId, paperId) {
     return docs.map((c) => ({
       id: String(c._id),
       chunkIndex: c.chunkIndex,
+      pageEstimate: c.pageEstimate || 1,
       content: c.content,
+      charStart: c.charStart,
+      charEnd: c.charEnd,
     }));
   }
 
@@ -526,7 +529,10 @@ export async function listPaperChunks(userId, paperId) {
     .map((c) => ({
       id: c.id,
       chunkIndex: c.chunkIndex,
+      pageEstimate: c.pageEstimate || 1,
       content: c.content,
+      charStart: c.charStart,
+      charEnd: c.charEnd,
     }));
 }
 

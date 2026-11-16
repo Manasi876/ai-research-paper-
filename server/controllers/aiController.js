@@ -7,6 +7,7 @@ import {
   hasGeminiApiKey,
   summarizeResearchPaper,
 } from "../services/geminiService.js";
+import { rankChunksLocally } from "../services/localPaperNlp.js";
 import {
   deleteConversation,
   getConversationById,
@@ -149,18 +150,33 @@ export async function chatWithPaper(req, res, next) {
       }
     }
 
-    if (paper.embeddingSource === "local" && hasGeminiApiKey()) {
-      const existingChunks = await listPaperChunks(userId, paperId);
-      if (existingChunks.length > 0) {
-        const geminiEmbeddings = await embedBatch(
-          existingChunks.map((c) => c.content)
+    let topChunks = [];
+    if (hasGeminiApiKey()) {
+      try {
+        if (paper.embeddingSource === "local") {
+          const existingChunks = await listPaperChunks(userId, paperId);
+          if (existingChunks.length > 0) {
+            const geminiEmbeddings = await embedBatch(
+              existingChunks.map((c) => c.content)
+            );
+            await updatePaperChunksEmbeddings(userId, paperId, geminiEmbeddings);
+          }
+        }
+        const queryEmbedding = await embedText(question);
+        topChunks = await searchPaperChunks(userId, paperId, queryEmbedding, 5);
+      } catch (embedErr) {
+        console.warn(
+          "[aiController] Gemini retrieval fallback used:",
+          embedErr instanceof Error ? embedErr.message : String(embedErr)
         );
-        await updatePaperChunksEmbeddings(userId, paperId, geminiEmbeddings);
       }
     }
 
-    const queryEmbedding = await embedText(question);
-    const topChunks = await searchPaperChunks(userId, paperId, queryEmbedding, 5);
+    if (topChunks.length === 0) {
+      const allChunks = await listPaperChunks(userId, paperId);
+      topChunks = rankChunksLocally(question, allChunks, 5);
+    }
+
     const answer = await answerRagQuestion(
       question,
       paper.title,

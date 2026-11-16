@@ -115,12 +115,7 @@ export async function uploadPaper(req, res, next) {
             ? embedRes.reason.message
             : String(embedRes.reason);
         console.warn(`[papers/upload] Gemini embedding fallback used: ${aiMsg}`);
-        warning =
-          "Paper uploaded and indexed locally. Configure a valid GEMINI_API_KEY in .env or environment variables to enable AI features.";
       }
-    } else {
-      warning =
-        "Paper uploaded and indexed locally. Configure GEMINI_API_KEY in .env or environment variables to enable AI analysis, summarization, and RAG chat.";
     }
 
     const paper = await savePaperWithChunks({
