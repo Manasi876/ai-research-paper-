@@ -16,6 +16,11 @@ const PaperSchema = new Schema({
   isBookmarked: { type: Boolean, default: false },
   projectIds: { type: [Schema.Types.ObjectId], ref: "ResearchProject", default: [] },
   uploadDate: { type: Date, default: Date.now, index: true },
+  embeddingSource: {
+    type: String,
+    enum: ["gemini", "local"],
+    default: "gemini",
+  },
   processingStatus: {
     type: String,
     enum: ["processing", "completed", "failed"],

@@ -5,15 +5,129 @@ const LLM_MODEL = "gemini-4-hydrogen";
 const EMBEDDING_DIMENSIONS = 768;
 
 let cachedClient = null;
+let cachedApiKey = null;
+
+function getGeminiApiKey() {
+  const candidates = [
+    process.env.GEMINI_API_KEY,
+    process.env.GOOGLE_API_KEY,
+    process.env.GOOGLE_GEMINI_API_KEY,
+    process.env.VITE_GEMINI_API_KEY,
+  ];
+  for (const raw of candidates) {
+    const key = typeof raw === "string" ? raw.trim() : "";
+    if (key && key !== "MY_GEMINI_API_KEY") {
+      return key;
+    }
+  }
+  return null;
+}
+
+export function hasGeminiApiKey() {
+  return Boolean(getGeminiApiKey());
+}
+
+export function buildLocalEmbedding(text, dimensions = EMBEDDING_DIMENSIONS) {
+  const vec = new Float64Array(dimensions);
+  const tokens = String(text || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]+/g, " ")
+    .split(/\s+/)
+    .filter((t) => t.length >= 2);
+
+  for (let i = 0; i < tokens.length; i++) {
+    const terms = i + 1 < tokens.length ? [tokens[i], `${tokens[i]}_${tokens[i + 1]}`] : [tokens[i]];
+    for (const term of terms) {
+      let hash = 2166136261;
+      for (let c = 0; c < term.length; c++) {
+        hash ^= term.charCodeAt(c);
+        hash = Math.imul(hash, 16777619);
+      }
+      const idx = (hash >>> 0) % dimensions;
+      const sign = (hash & 1) === 0 ? 1 : -1;
+      vec[idx] += sign;
+    }
+  }
+
+  let norm = 0;
+  for (let i = 0; i < dimensions; i++) {
+    norm += vec[i] * vec[i];
+  }
+  norm = Math.sqrt(norm) || 1;
+
+  const out = new Array(dimensions);
+  for (let i = 0; i < dimensions; i++) {
+    out[i] = vec[i] / norm;
+  }
+  return out;
+}
+
+export function extractLocalMetadata(fallbackTitle, text) {
+  const header = String(text || "").slice(0, 6000);
+  const lines = header
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  let title = fallbackTitle;
+  const looksLikeFilename =
+    !fallbackTitle ||
+    /^[a-z0-9_-]+$/i.test(fallbackTitle) ||
+    fallbackTitle.length < 6;
+  if (looksLikeFilename) {
+    const candidate = lines.find(
+      (l) =>
+        l.length >= 10 &&
+        l.length <= 180 &&
+        !/^(abstract|keywords|index terms|arxiv:|http|doi:|volume|issue|issn)/i.test(l)
+    );
+    if (candidate) title = candidate;
+  }
+
+  let abstract = "";
+  const absMatch = header.match(
+    /(?:^|\n)\s*abstract[:.\s—–-]*\n?([\s\S]{40,1800}?)(?=\n\s*(?:keywords|index terms|1\.?\s+introduction|introduction)\b)/i
+  );
+  if (absMatch?.[1]) {
+    abstract = absMatch[1].replace(/\s+/g, " ").trim();
+  }
+
+  let keywords = [];
+  const kwMatch = header.match(
+    /(?:^|\n)\s*(?:keywords|index terms)[:.\s—–-]+([^\n]{3,300})/i
+  );
+  if (kwMatch?.[1]) {
+    keywords = kwMatch[1]
+      .split(/[,;·•]+/)
+      .map((k) => k.trim())
+      .filter((k) => k.length > 1 && k.length <= 60)
+      .slice(0, 10);
+  }
+
+  let publicationYear = "";
+  const yearMatch = header.slice(0, 2500).match(/\b(199\d|20[0-2]\d)\b/);
+  if (yearMatch?.[1]) {
+    publicationYear = yearMatch[1];
+  }
+
+  return {
+    title: title || fallbackTitle,
+    authors: [],
+    abstract,
+    keywords,
+    publicationYear,
+  };
+}
 
 function getGeminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
     throw new Error(
-      "GEMINI_API_KEY is not configured. Please add your Gemini API key in Settings > Secrets (or .env)."
+      "GEMINI_API_KEY is not configured. Please add your Gemini API key in Settings > Secrets, Vercel Environment Variables, or .env."
     );
   }
-  if (!cachedClient) {
+  if (!cachedClient || cachedApiKey !== apiKey) {
+    cachedApiKey = apiKey;
     cachedClient = new GoogleGenAI({
       apiKey,
       httpOptions: {

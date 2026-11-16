@@ -11,8 +11,11 @@ import {
   PdfValidationError,
 } from "../services/chunker.js";
 import {
+  buildLocalEmbedding,
   embedBatch,
   extractBibliographicMetadata,
+  extractLocalMetadata,
+  hasGeminiApiKey,
 } from "../services/geminiService.js";
 import {
   deletePaperForUser,
@@ -155,11 +158,37 @@ router.post(
       fs.writeFileSync(storedPath, req.file.buffer);
       const fileUrl = `/uploads/${storedName}`;
 
-      // Extract metadata + generate embeddings in parallel
-      const [metadata, embeddings] = await Promise.all([
-        extractBibliographicMetadata(parsed.title, parsed.text),
-        embedBatch(chunks.map((c) => c.content)),
-      ]);
+      // Extract metadata + generate embeddings (gracefully fall back if GEMINI_API_KEY is missing/unavailable)
+      let metadata = extractLocalMetadata(parsed.title, parsed.text);
+      let embeddings = chunks.map((c) => buildLocalEmbedding(c.content));
+      let embeddingSource = "local";
+      let warning = null;
+
+      if (hasGeminiApiKey()) {
+        const [metaRes, embedRes] = await Promise.allSettled([
+          extractBibliographicMetadata(parsed.title, parsed.text),
+          embedBatch(chunks.map((c) => c.content)),
+        ]);
+
+        if (metaRes.status === "fulfilled") {
+          metadata = metaRes.value;
+        }
+        if (embedRes.status === "fulfilled") {
+          embeddings = embedRes.value;
+          embeddingSource = "gemini";
+        } else {
+          const aiMsg =
+            embedRes.reason instanceof Error
+              ? embedRes.reason.message
+              : String(embedRes.reason);
+          console.warn(`[papers/upload] Gemini embedding fallback used: ${aiMsg}`);
+          warning =
+            "Paper uploaded and indexed locally. Gemini embeddings were skipped because GEMINI_API_KEY was unavailable or rate-limited.";
+        }
+      } else {
+        warning =
+          "Paper uploaded and indexed locally. Add GEMINI_API_KEY in Settings > Secrets (or .env / Vercel Env Vars) to enable AI analysis & Q&A.";
+      }
 
       const paper = await savePaperWithChunks({
         userId,
@@ -175,10 +204,11 @@ router.post(
         publicationYear: metadata.publicationYear,
         chunks,
         embeddings,
+        embeddingSource,
       });
 
       await logActivity(userId, "Uploaded paper", paper.title);
-      res.status(201).json({ paper });
+      res.status(201).json({ paper, ...(warning ? { warning } : {}) });
     } catch (err) {
       next(err);
     }

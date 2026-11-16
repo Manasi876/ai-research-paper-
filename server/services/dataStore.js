@@ -98,6 +98,7 @@ function toPaperDTO(doc, includeText = false) {
       doc.uploadDate instanceof Date
         ? doc.uploadDate.toISOString()
         : String(doc.uploadDate ?? new Date().toISOString()),
+    embeddingSource: doc.embeddingSource ?? "gemini",
     processingStatus: doc.processingStatus ?? "completed",
   };
   if (includeText) {
@@ -277,6 +278,7 @@ export async function savePaperWithChunks(params) {
       isBookmarked: false,
       projectIds: [],
       uploadDate: new Date(),
+      embeddingSource: params.embeddingSource ?? "gemini",
       processingStatus: "completed",
     });
 
@@ -317,6 +319,7 @@ export async function savePaperWithChunks(params) {
     isBookmarked: false,
     projectIds: [],
     uploadDate: new Date().toISOString(),
+    embeddingSource: params.embeddingSource ?? "gemini",
     processingStatus: "completed",
   };
 
@@ -498,6 +501,67 @@ export async function searchPaperChunks(userId, paperId, queryEmbedding, topK = 
     }))
     .sort((a, b) => b.score - a.score)
     .slice(0, topK);
+}
+
+export async function listPaperChunks(userId, paperId) {
+  if (isMongoConnected()) {
+    if (!mongoose.Types.ObjectId.isValid(paperId)) return [];
+    const docs = await ChunkModel.find({
+      paperId: new mongoose.Types.ObjectId(paperId),
+      userId: new mongoose.Types.ObjectId(userId),
+    })
+      .sort({ chunkIndex: 1 })
+      .lean();
+    return docs.map((c) => ({
+      id: String(c._id),
+      chunkIndex: c.chunkIndex,
+      content: c.content,
+    }));
+  }
+
+  const store = readLocalStore();
+  return store.chunks
+    .filter((c) => c.paperId === paperId && c.userId === userId)
+    .sort((a, b) => a.chunkIndex - b.chunkIndex)
+    .map((c) => ({
+      id: c.id,
+      chunkIndex: c.chunkIndex,
+      content: c.content,
+    }));
+}
+
+export async function updatePaperChunksEmbeddings(userId, paperId, embeddings) {
+  if (isMongoConnected()) {
+    if (!mongoose.Types.ObjectId.isValid(paperId)) return;
+    const objectPaperId = new mongoose.Types.ObjectId(paperId);
+    const objectUserId = new mongoose.Types.ObjectId(userId);
+    await Promise.all(
+      embeddings.map((embedding, idx) =>
+        ChunkModel.updateOne(
+          { paperId: objectPaperId, userId: objectUserId, chunkIndex: idx },
+          { $set: { embedding } }
+        )
+      )
+    );
+    await PaperModel.updateOne(
+      { _id: objectPaperId, userId: objectUserId },
+      { $set: { embeddingSource: "gemini" } }
+    );
+    return;
+  }
+
+  const store = readLocalStore();
+  for (const chunk of store.chunks) {
+    if (chunk.paperId === paperId && chunk.userId === userId) {
+      const next = embeddings[chunk.chunkIndex];
+      if (next) chunk.embedding = next;
+    }
+  }
+  const pIdx = store.papers.findIndex((p) => p.id === paperId && p.userId === userId);
+  if (pIdx !== -1) {
+    store.papers[pIdx].embeddingSource = "gemini";
+  }
+  writeLocalStore(store);
 }
 
 export async function getPaperAnalysis(userId, paperId) {

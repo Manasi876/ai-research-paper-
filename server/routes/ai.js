@@ -5,10 +5,12 @@ import {
   analyzeResearchPaper,
   answerRagQuestion,
   compareResearchPapers,
+  embedBatch,
   embedText,
   findResearchGaps,
   generatePaperQuestions,
   generatePresentationOutline,
+  hasGeminiApiKey,
   summarizeResearchPaper,
 } from "../services/geminiService.js";
 import { buildCitations } from "../services/citationService.js";
@@ -19,10 +21,12 @@ import {
   getPaperForUser,
   listConversationsForPaper,
   listGeneratedContent,
+  listPaperChunks,
   logActivity,
   saveGeneratedContent,
   savePaperAnalysis,
   searchPaperChunks,
+  updatePaperChunksEmbeddings,
   upsertConversationMessages,
 } from "../services/dataStore.js";
 
@@ -176,6 +180,16 @@ router.post("/chat/:paperId", async (req, res, next) => {
           role: m.role,
           content: m.content,
         }));
+      }
+    }
+
+    if (paper.embeddingSource === "local" && hasGeminiApiKey()) {
+      const existingChunks = await listPaperChunks(userId, paperId);
+      if (existingChunks.length > 0) {
+        const geminiEmbeddings = await embedBatch(
+          existingChunks.map((c) => c.content)
+        );
+        await updatePaperChunksEmbeddings(userId, paperId, geminiEmbeddings);
       }
     }
 

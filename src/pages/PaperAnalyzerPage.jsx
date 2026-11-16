@@ -90,10 +90,13 @@ export function PaperAnalyzerPage({
 
     setUploading(true);
     try {
-      const { paper } = await api.uploadPaper(file);
+      const { paper, warning } = await api.uploadPaper(file);
       onPaperUploaded(paper);
       onSelectPaper(paper.id);
       showToast(`Indexed "${paper.title}" successfully.`, "success");
+      if (warning) {
+        showToast(warning, "info");
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Upload failed.";
       setUploadError(msg);
