@@ -308,38 +308,56 @@ export async function summarizeResearchPaper(title, extractedText, format) {
   const ai = getGeminiClient();
   const sample = sampleDocumentText(extractedText, 28000);
 
-  const lengthGuidance =
-    format === "short"
-      ? "Keep each field concise (1-2 crisp sentences)."
-      : format === "medium"
-      ? "Provide balanced paragraph explanations (3-4 sentences per field)."
-      : "Provide thorough, detailed academic explanations (5-7 sentences per field with technical specifics from the text).";
+  if (format === "short") {
+    const response = await withRetry(() =>
+      ai.models.generateContent({
+        model: LLM_MODEL,
+        contents: `Write a clear, student-friendly Short Summary of this research paper in approximately 150 to 200 words using simple English. Explain what problem the paper addresses, how it solves it, and the main outcome—strictly grounded in the provided text.\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
+        config: {
+          systemInstruction:
+            "You are an academic summarizer explaining research papers to undergraduate computer science students in simple, clear English. Never invent facts not present in the paper.",
+          responseMimeType: "application/json",
+          thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              summaryText: { type: Type.STRING },
+            },
+            required: ["summaryText"],
+          },
+        },
+      })
+    );
+
+    const parsed = JSON.parse(response.text || "{}");
+    const summaryText = String(parsed.summaryText || "").trim();
+    const wordCount = summaryText ? summaryText.split(/\s+/).length : 0;
+    return { format: "short", summaryText, wordCount };
+  }
 
   const response = await withRetry(() =>
     ai.models.generateContent({
       model: LLM_MODEL,
-      contents: `Summarize this research paper strictly from the provided text. ${lengthGuidance}\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
+      contents: `Write a clear, comprehensive Detailed Summary of this research paper in simple English for students, strictly from the provided text. Cover the research problem, objectives, proposed methodology, experimental results, and conclusion with 4-6 clear sentences per section.\n\nPaper Title: ${title}\n\nPaper Text:\n${sample}`,
       config: {
         systemInstruction:
-          "You are an academic summarizer. Never invent results, datasets, or conclusions not present in the paper.",
+          "You are an academic summarizer explaining research papers to undergraduate students in simple, clear English. Never invent results, datasets, or conclusions not present in the paper.",
         responseMimeType: "application/json",
         thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            mainIdea: { type: Type.STRING },
             researchProblem: { type: Type.STRING },
-            proposedSolution: { type: Type.STRING },
+            objectives: { type: Type.STRING },
             methodology: { type: Type.STRING },
-            importantFindings: { type: Type.STRING },
+            results: { type: Type.STRING },
             conclusion: { type: Type.STRING },
           },
           required: [
-            "mainIdea",
             "researchProblem",
-            "proposedSolution",
+            "objectives",
             "methodology",
-            "importantFindings",
+            "results",
             "conclusion",
           ],
         },
@@ -347,7 +365,8 @@ export async function summarizeResearchPaper(title, extractedText, format) {
     })
   );
 
-  return JSON.parse(response.text || "{}");
+  const parsed = JSON.parse(response.text || "{}");
+  return { format: "detailed", ...parsed };
 }
 
 export async function answerRagQuestion(

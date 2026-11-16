@@ -1,14 +1,13 @@
 import { useState } from "react";
-import { Check, Copy, Download, FileText, Loader2 } from "lucide-react";
+import { Check, Copy, Download, FileText, Loader2, Upload } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { api } from "../services/api";
 
-const SUMMARY_FIELDS = [
-  { key: "mainIdea", label: "Main Idea" },
+const DETAILED_SECTIONS = [
   { key: "researchProblem", label: "Research Problem" },
-  { key: "proposedSolution", label: "Proposed Solution" },
+  { key: "objectives", label: "Objectives" },
   { key: "methodology", label: "Methodology" },
-  { key: "importantFindings", label: "Important Findings" },
+  { key: "results", label: "Experimental Results" },
   { key: "conclusion", label: "Conclusion" },
 ];
 
@@ -16,11 +15,13 @@ export function SummarizerPage({
   papers,
   selectedPaperId,
   onSelectPaper,
+  onGoUpload,
 }) {
   const { showToast } = useToast();
-  const activePaper = papers.find((p) => p.id === selectedPaperId) ?? papers[0] ?? null;
+  const activePaper =
+    papers.find((p) => p.id === selectedPaperId) ?? papers[0] ?? null;
 
-  const [format, setFormat] = useState("medium");
+  const [format, setFormat] = useState("short");
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -31,7 +32,10 @@ export function SummarizerPage({
     try {
       const res = await api.summarizePaper(activePaper.id, format);
       setSummary(res.summary);
-      showToast(`Generated ${format} summary.`, "success");
+      showToast(
+        `Generated ${format === "short" ? "Short" : "Detailed"} Summary.`,
+        "success"
+      );
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : "Failed to summarize paper.",
@@ -44,10 +48,19 @@ export function SummarizerPage({
 
   function buildPlainText() {
     if (!activePaper || !summary) return "";
+    if (summary.format === "short") {
+      return [
+        `${activePaper.title} — SHORT SUMMARY (~150–200 WORDS)`,
+        "",
+        summary.summaryText || "",
+      ].join("\n");
+    }
     return [
-      `${activePaper.title} (${format.toUpperCase()} SUMMARY)`,
+      `${activePaper.title} — DETAILED SUMMARY`,
       "",
-      ...SUMMARY_FIELDS.map((f) => `${f.label}:\n${summary[f.key]}\n`),
+      ...DETAILED_SECTIONS.map(
+        (s) => `${s.label}:\n${String(summary[s.key] || "")}\n`
+      ),
     ].join("\n");
   }
 
@@ -60,13 +73,39 @@ export function SummarizerPage({
 
   function handleDownload() {
     if (!activePaper || !summary) return;
-    const blob = new Blob([buildPlainText()], { type: "text/plain;charset=utf-8" });
+    const blob = new Blob([buildPlainText()], {
+      type: "text/plain;charset=utf-8",
+    });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${activePaper.title.replace(/[^a-z0-9]+/gi, "_")}_${format}_summary.txt`;
+    a.download = `${activePaper.title.replace(/[^a-z0-9]+/gi, "_")}_${
+      summary.format
+    }_summary.txt`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  if (papers.length === 0) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center">
+        <FileText className="mx-auto h-8 w-8 text-slate-400" />
+        <p className="mt-3 font-display text-base font-semibold text-slate-900 dark:text-slate-100">
+          No papers uploaded yet
+        </p>
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          Upload a research PDF in the Paper Analyzer first to generate Short or Detailed summaries.
+        </p>
+        <button
+          type="button"
+          onClick={onGoUpload}
+          className="mt-4 inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg btn-brand-gradient px-4 text-xs font-semibold"
+        >
+          <Upload className="h-4 w-4" />
+          <span>Go to Paper Analyzer</span>
+        </button>
+      </div>
+    );
   }
 
   return (
@@ -74,10 +113,14 @@ export function SummarizerPage({
       <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs space-y-4">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div className="flex-1">
-            <label className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
+            <label
+              htmlFor="summarizer-paper-select"
+              className="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5"
+            >
               Select Research Paper
             </label>
             <select
+              id="summarizer-paper-select"
               value={activePaper?.id || ""}
               onChange={(e) => {
                 onSelectPaper(e.target.value);
@@ -85,37 +128,41 @@ export function SummarizerPage({
               }}
               className="h-10 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:outline-none"
             >
-              {papers.length === 0 ? (
-                <option value="">No papers uploaded</option>
-              ) : (
-                papers.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.title}
-                  </option>
-                ))
-              )}
+              {papers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.title}
+                </option>
+              ))}
             </select>
           </div>
 
           <div>
             <p className="text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">
-              Summary Format
+              Summary Option
             </p>
             <div className="inline-flex rounded-lg bg-slate-100 dark:bg-slate-800 p-1">
-              {["short", "medium", "detailed"].map((lvl) => (
-                <button
-                  key={lvl}
-                  type="button"
-                  onClick={() => setFormat(lvl)}
-                  className={`rounded-md px-3 py-1.5 text-xs font-semibold capitalize transition-colors ${
-                    format === lvl
-                      ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs"
-                      : "text-slate-600 dark:text-slate-400"
-                  }`}
-                >
-                  {lvl}
-                </button>
-              ))}
+              <button
+                type="button"
+                onClick={() => setFormat("short")}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+                  format === "short"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs"
+                    : "text-slate-600 dark:text-slate-400"
+                }`}
+              >
+                Short (150–200 words)
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormat("detailed")}
+                className={`rounded-md px-3 py-1.5 text-xs font-semibold transition-colors whitespace-nowrap ${
+                  format === "detailed"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-xs"
+                    : "text-slate-600 dark:text-slate-400"
+                }`}
+              >
+                Detailed Summary
+              </button>
             </div>
           </div>
 
@@ -136,13 +183,11 @@ export function SummarizerPage({
       </section>
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[1, 2, 3, 4].map((n) => (
-            <div
-              key={n}
-              className="h-32 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 animate-pulse"
-            />
-          ))}
+        <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-3 animate-pulse">
+          <div className="h-5 w-1/2 rounded bg-slate-200 dark:bg-slate-800" />
+          <div className="h-3 w-full rounded bg-slate-100 dark:bg-slate-800/60" />
+          <div className="h-3 w-11/12 rounded bg-slate-100 dark:bg-slate-800/60" />
+          <div className="h-3 w-4/5 rounded bg-slate-100 dark:bg-slate-800/60" />
         </div>
       ) : summary ? (
         <section className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs space-y-5">
@@ -151,8 +196,20 @@ export function SummarizerPage({
               <h2 className="font-display text-base font-bold text-slate-900 dark:text-slate-100">
                 {activePaper?.title}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400 capitalize">
-                {format} format summary
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {summary.format === "short" ? (
+                  <>
+                    Short Summary (Plain English)
+                    {summary.wordCount ? (
+                      <span className="font-mono tabular-nums">
+                        {" "}
+                        · {summary.wordCount} words
+                      </span>
+                    ) : null}
+                  </>
+                ) : (
+                  "Detailed Summary (Problem, Objectives, Methodology, Results & Conclusion)"
+                )}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -161,7 +218,11 @@ export function SummarizerPage({
                 onClick={handleCopyAll}
                 className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-700 px-3 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800"
               >
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
+                {copied ? (
+                  <Check className="h-3.5 w-3.5 text-emerald-600" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" />
+                )}
                 <span>Copy</span>
               </button>
               <button
@@ -175,30 +236,40 @@ export function SummarizerPage({
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            {SUMMARY_FIELDS.map((field) => (
-              <div
-                key={field.key}
-                className="rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-4"
-              >
-                <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-400">
-                  {field.label}
-                </h3>
-                <p className="mt-2 text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                  {summary[field.key]}
-                </p>
-              </div>
-            ))}
-          </div>
+          {summary.format === "short" ? (
+            <div className="rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-5">
+              <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed whitespace-pre-wrap">
+                {summary.summaryText}
+              </p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              {DETAILED_SECTIONS.map((field) => (
+                <div
+                  key={field.key}
+                  className={`rounded-lg border border-slate-100 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-800/40 p-4 ${
+                    field.key === "conclusion" ? "md:col-span-2" : ""
+                  }`}
+                >
+                  <h3 className="text-xs font-semibold text-blue-700 dark:text-blue-400">
+                    {field.label}
+                  </h3>
+                  <p className="mt-2 text-sm text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                    {summary[field.key]}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </section>
       ) : (
         <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center">
           <FileText className="mx-auto h-7 w-7 text-slate-400" />
           <p className="mt-3 text-sm font-medium text-slate-800 dark:text-slate-200">
-            Select a paper and summary format above
+            Select a paper and choose Short or Detailed summary
           </p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Covers main idea, research problem, proposed solution, methodology, findings, and conclusion.
+            Short Summary produces a ~150–200 word overview in simple English. Detailed Summary breaks down problem, objectives, methodology, results, and conclusion.
           </p>
         </div>
       )}

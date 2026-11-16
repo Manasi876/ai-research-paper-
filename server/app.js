@@ -3,13 +3,11 @@ import cors from "cors";
 import rateLimit from "express-rate-limit";
 import { connectDatabase, isMongoConnected } from "./config/db.js";
 import { PdfValidationError } from "./services/chunker.js";
+import { hasGeminiApiKey } from "./services/geminiService.js";
 import authRouter from "./routes/auth.js";
 import usersRouter from "./routes/users.js";
 import papersRouter from "./routes/papers.js";
 import aiRouter from "./routes/ai.js";
-import researchRouter from "./routes/research.js";
-import projectsRouter from "./routes/projects.js";
-import dashboardRouter from "./routes/dashboard.js";
 
 function isAllowedOrigin(origin) {
   if (!origin) return true;
@@ -72,7 +70,6 @@ export function createApiApp() {
 
   app.use(express.json({ limit: "3mb" }));
 
-  // Ensure DB is ready on every API request (fast no-op when already connected)
   app.use("/api", async (_req, _res, next) => {
     try {
       await connectDatabase();
@@ -87,7 +84,9 @@ export function createApiApp() {
     max: 60,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: "Too many authentication requests. Please try again later." },
+    message: {
+      error: "Too many authentication requests. Please try again later.",
+    },
   });
 
   const aiLimiter = rateLimit({
@@ -95,22 +94,22 @@ export function createApiApp() {
     max: 45,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: "Rate limit exceeded for AI requests. Please wait a moment." },
+    message: {
+      error: "Rate limit exceeded for AI requests. Please wait a moment.",
+    },
   });
 
   app.use("/api/auth", authLimiter, authRouter);
   app.use("/api/users", usersRouter);
   app.use("/api/papers", papersRouter);
   app.use("/api/ai", aiLimiter, aiRouter);
-  app.use("/api/research", researchRouter);
-  app.use("/api/projects", projectsRouter);
-  app.use("/api/dashboard", dashboardRouter);
 
   app.get("/api/health", (_req, res) => {
     res.json({
       ok: true,
-      service: "ai-in-research-paper",
+      service: "ai-research-paper-analyzer",
       dbMode: isMongoConnected() ? "mongodb" : "local",
+      aiConfigured: hasGeminiApiKey(),
       environment: process.env.VERCEL ? "vercel" : "node",
     });
   });

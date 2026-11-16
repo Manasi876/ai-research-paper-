@@ -1,66 +1,118 @@
-# AI in Research Paper — Intelligent Research Paper Assistant
+# AI Research Paper Analyzer
 
-A full-stack, AI-powered academic research SaaS platform built with **JavaScript (ES Modules)**, **React + Vite + Tailwind CSS**, **Node.js + Express**, **MongoDB (Mongoose)**, and **Google Gemini (`@google/genai`)**.
+An AI-powered full-stack web application built for B.Tech CSE minor projects to help students and researchers upload academic research papers (PDF), extract structured technical breakdowns, generate plain-English summaries, and ask grounded questions via Retrieval-Augmented Generation (RAG).
 
 ## Core Features
 
-1. **JWT Authentication & User Isolation**: Register, login, bcrypt password hashing, profile management, Light/Dark mode, and user-isolated documents.
-2. **Research Dashboard**: KPI counters, 7-day research activity chart (`Recharts`), quick AI tools, recent papers, project overview, and activity timeline.
-3. **AI Research Paper Analyzer**: Drag-and-drop PDF upload (`multer` + `pdf-parse`), metadata extraction, and structured 11-section breakdown with Copy & Markdown export.
-4. **Chat with Research Paper (RAG)**: Chunked 768-d Gemini embeddings, MongoDB Atlas `$vectorSearch` (with cosine fallback), multiple conversations per paper, suggested questions, and cited source chunks with estimated page numbers.
-5. **Smart Summarizer**: Short, Medium, and Detailed structured summaries with copy and `.txt` export.
-6. **Research Paper Comparison**: Select 2–5 uploaded papers for a multi-dimension comparison matrix, overall synthesis, similarities, and differences.
-7. **Research Gap Finder**: Identifies limitations, unsolved problems, dataset gaps, and >=5 evidence-backed research ideas explicitly labeled as hypotheses requiring verification.
-8. **AI Question & Quiz Generator**: Generates MCQs, Technical, Viva, Short, and Long questions (Easy/Medium/Hard) with interactive Practice Quiz Mode and scoring.
-9. **Citation Generator**: Formats IEEE, APA, and MLA citations strictly from verified metadata and flags missing fields for manual verification.
-10. **Research Paper Finder**: Live search across **Semantic Scholar** and **Crossref** APIs with Open-Access PDF vs. Access-Required indicators and library saving.
-11. **My Research Library**: Research project folders CRUD, search, date/bookmark filters, saved discovery papers, and AI generation history downloads.
-12. **Presentation Generator**: Generates a 10-slide academic deck outline and exports a real `.pptx` PowerPoint file via `pptxgenjs`.
+1. **AI Research Paper Analysis**
+   - Upload PDF files with drag-and-drop validation (`pdf-parse` + `multer`).
+   - Extracts paper title, abstract, authors, problem statement, research objectives, methodology, algorithms and technologies used, experimental results, advantages, limitations, conclusion, and future scope.
+   - Supports one-click section copy and Markdown (`.md`) download.
 
-## Project Structure
+2. **AI Research Paper Summarizer**
+   - **Short Summary**: Clear explanation in ~150–200 words using simple English.
+   - **Detailed Summary**: Structured breakdown covering research problem, objectives, methodology, experimental results, and conclusion.
+   - Supports copy and `.txt` export.
+
+3. **Chat with Research Paper (RAG)**
+   - Splits extracted text into overlapping chunks, generates 768-dimensional embeddings (`gemini-embedding-2`), and retrieves the top matching chunks via cosine similarity search.
+   - Answers strictly from retrieved excerpts with inline chunk/page citations and an explicit fallback when information is not in the uploaded PDF.
+
+## Website Pages
+
+1. **Landing Page** — Overview, 3 core features, workflow, tech stack, Login & Register links.
+2. **Authentication Page** — User registration & login (`bcryptjs` + `JWT`) with protected routes.
+3. **Dashboard** — Welcome banner, upload shortcut, paper/analysis/chunk metrics, quick access to the 3 core tools, and recent papers.
+4. **Research Paper Analyzer** — PDF upload dropzone and 10-section structured analysis viewer.
+5. **Research Paper Summarizer** — Short and Detailed summary generator.
+6. **Chat with PDF** — Grounded RAG Q&A with suggested questions, conversation history, and expandable source excerpts.
+7. **My Papers** — Searchable list of uploaded PDFs with upload date, analysis status, View/Summarize/Chat actions, and delete confirmation.
+
+## Folder Structure
 
 ```text
-├── server.js                          # Express entry point (port 3000)
+├── api/
+│   └── index.js                # Vercel serverless Express handler
 ├── server/
-│   ├── atlas-vector-index.json        # MongoDB Atlas Vector Search definition
-│   ├── config/db.js                   # Mongoose connection + local JSON fallback
-│   ├── middleware/auth.js             # JWT + bcrypt authentication middleware
-│   ├── models/                        # Mongoose schemas (User, Paper, Chunk, etc.)
-│   ├── routes/                        # auth, users, papers, ai, research, projects, dashboard
-│   └── services/                      # chunker, geminiService, citationService, researchDiscovery, dataStore
-└── src/
-    ├── components/AppShell.jsx        # Responsive SaaS sidebar, Back button & top bar
-    ├── context/                       # AuthContext & ToastContext
-    ├── pages/                         # Auth + 12 research workspace pages
-    └── services/api.js                # Authenticated REST API client
+│   ├── app.js                  # Shared Express app, CORS, rate limiting, error handler
+│   ├── config/
+│   │   └── db.js               # MongoDB Mongoose connection + local JSON fallback
+│   ├── controllers/
+│   │   ├── aiController.js     # Analysis, summarization, and RAG chat handlers
+│   │   ├── authController.js   # Register, login, and current user handlers
+│   │   └── paperController.js  # PDF upload, chunking, listing, and delete handlers
+│   ├── middleware/
+│   │   └── auth.js             # JWT verification and password hashing utilities
+│   ├── models/
+│   │   ├── Conversation.js     # Chat thread & grounded source chunk schema
+│   │   ├── Paper.js            # Paper metadata, chunks, and 768-d embeddings schema
+│   │   ├── PaperAnalysis.js    # Saved structured paper analysis schema
+│   │   └── User.js             # User account schema
+│   ├── routes/
+│   │   ├── ai.js
+│   │   ├── auth.js
+│   │   ├── papers.js
+│   │   └── users.js
+│   └── services/
+│       ├── chunker.js          # PDF text extraction & overlapping chunk splitter
+│       ├── dataStore.js        # MongoDB + local JSON store abstraction
+│       └── geminiService.js    # @google/genai client, embeddings, analysis & RAG
+├── src/
+│   ├── components/
+│   │   └── AppShell.jsx        # Responsive sidebar, header, back button, theme toggle
+│   ├── context/
+│   │   ├── AuthContext.jsx     # Session & theme persistence
+│   │   └── ToastContext.jsx    # Toast notifications
+│   ├── pages/
+│   │   ├── AuthPage.jsx
+│   │   ├── DashboardPage.jsx
+│   │   ├── LandingPage.jsx
+│   │   ├── MyPapersPage.jsx
+│   │   ├── PaperAnalyzerPage.jsx
+│   │   ├── PaperChatPage.jsx
+│   │   └── SummarizerPage.jsx
+│   ├── services/
+│   │   └── api.js              # Fetch wrapper with Bearer JWT handling
+│   ├── App.jsx
+│   ├── index.css
+│   └── main.jsx
+├── server.js                   # Local Node + Vite dev/prod server (port 3000)
+├── vercel.json                 # Vercel rewrite rules for /api and SPA fallback
+└── .env.example
 ```
 
-## Installation & Local Setup
+## API Endpoints
+
+- `GET /api/health` — Database mode & Gemini API configuration status
+- `POST /api/auth/register` / `POST /api/auth/login` / `GET /api/auth/me`
+- `GET /api/papers` / `GET /api/papers/:id` / `POST /api/papers/upload` / `DELETE /api/papers/:id`
+- `GET /api/ai/analyze/:paperId` / `POST /api/ai/analyze/:paperId`
+- `POST /api/ai/summarize/:paperId`
+- `GET /api/ai/chat/:paperId` / `POST /api/ai/chat/:paperId` / `DELETE /api/ai/chat/:paperId/:conversationId`
+
+## Local Setup
 
 1. Install dependencies:
    ```bash
    npm install
    ```
-
-2. Create your environment file from `.env.example`:
-   ```bash
-   cp .env.example .env
+2. Copy `.env.example` to `.env` and fill in your credentials:
+   ```env
+   GEMINI_API_KEY=your_gemini_api_key
+   MONGODB_URI=your_mongodb_connection_string
+   JWT_SECRET=your_jwt_secret
    ```
-   Configure:
-   - `GEMINI_API_KEY`: Your Google Gemini API key
-   - `MONGODB_URI`: Your MongoDB Atlas URI (if left blank, the server automatically uses local JSON persistence in `data/store.json`)
-   - `JWT_SECRET`: A strong secret string for signing JWTs
-
-3. *(Optional for MongoDB Atlas Vector Search)* Create the search index on the `chunks` collection using `server/atlas-vector-index.json`.
-
-4. Start the development server:
+   *(If `MONGODB_URI` is omitted locally, the app falls back to local JSON storage for development.)*
+3. Run the full-stack server on `http://localhost:3000`:
    ```bash
    npm run dev
    ```
-   Open `http://localhost:3000`.
-
-5. Production build & run:
+4. Build for production:
    ```bash
    npm run build
-   NODE_ENV=production npm start
    ```
+
+## Deploying to Vercel
+
+1. Set `GEMINI_API_KEY`, `MONGODB_URI`, and `JWT_SECRET` in Vercel Project Settings -> Environment Variables.
+2. Deploy from Git or with `vercel --prod`. `vercel.json` automatically routes `/api/*` requests to `api/index.js` and serves the built React app for all other routes.

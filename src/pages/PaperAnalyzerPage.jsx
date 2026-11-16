@@ -15,17 +15,19 @@ import { api } from "../services/api";
 const MAX_BYTES = 15 * 1024 * 1024;
 
 const ANALYSIS_SECTIONS = [
-  { key: "overview", label: "1. Research Paper Overview" },
+  { key: "overview", label: "1. Abstract & Paper Overview" },
   { key: "problemStatement", label: "2. Problem Statement" },
-  { key: "objectives", label: "3. Main Research Objectives" },
-  { key: "methodology", label: "4. Proposed Methodology" },
-  { key: "technologiesAndAlgorithms", label: "5. Technologies & Algorithms Used" },
-  { key: "datasetInfo", label: "6. Dataset Information" },
-  { key: "results", label: "7. Experimental Results" },
-  { key: "advantages", label: "8. Advantages" },
-  { key: "limitations", label: "9. Limitations" },
+  { key: "objectives", label: "3. Research Objectives" },
+  { key: "methodology", label: "4. Methodology" },
+  {
+    key: "technologiesAndAlgorithms",
+    label: "5. Algorithms & Technologies Used",
+  },
+  { key: "results", label: "6. Experimental Results" },
+  { key: "advantages", label: "7. Advantages" },
+  { key: "limitations", label: "8. Limitations" },
+  { key: "conclusion", label: "9. Conclusion" },
   { key: "futureScope", label: "10. Future Scope" },
-  { key: "conclusion", label: "11. Conclusion" },
 ];
 
 export function PaperAnalyzerPage({
@@ -33,6 +35,7 @@ export function PaperAnalyzerPage({
   selectedPaperId,
   onSelectPaper,
   onPaperUploaded,
+  onAnalysisSaved,
 }) {
   const { showToast } = useToast();
   const fileInputRef = useRef(null);
@@ -46,7 +49,8 @@ export function PaperAnalyzerPage({
   const [runningAnalysis, setRunningAnalysis] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
 
-  const activePaper = papers.find((p) => p.id === selectedPaperId) ?? papers[0] ?? null;
+  const activePaper =
+    papers.find((p) => p.id === selectedPaperId) ?? papers[0] ?? null;
 
   useEffect(() => {
     if (!activePaper) {
@@ -74,13 +78,16 @@ export function PaperAnalyzerPage({
   async function handleUploadFile(file) {
     setUploadError(null);
     const isPdf =
-      file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      file.type === "application/pdf" ||
+      file.name.toLowerCase().endsWith(".pdf");
     if (!isPdf) {
-      setUploadError("Invalid file type. Only PDF documents (.pdf) are allowed.");
+      setUploadError(
+        "Invalid file type. Only PDF documents (.pdf) are allowed."
+      );
       return;
     }
     if (file.size === 0) {
-      setUploadError("Selected file is empty.");
+      setUploadError("Selected PDF file is empty.");
       return;
     }
     if (file.size > MAX_BYTES) {
@@ -93,7 +100,7 @@ export function PaperAnalyzerPage({
       const { paper, warning } = await api.uploadPaper(file);
       onPaperUploaded(paper);
       onSelectPaper(paper.id);
-      showToast(`Indexed "${paper.title}" successfully.`, "success");
+      showToast(`Uploaded "${paper.title}" successfully.`, "success");
       if (warning) {
         showToast(warning, "info");
       }
@@ -112,7 +119,8 @@ export function PaperAnalyzerPage({
     try {
       const res = await api.analyzePaper(activePaper.id, refresh);
       setAnalysis(res.analysis);
-      showToast("11-section AI paper analysis completed.", "success");
+      onAnalysisSaved?.(activePaper.id);
+      showToast("Structured paper analysis completed.", "success");
     } catch (err) {
       showToast(
         err instanceof Error ? err.message : "Failed to analyze paper.",
@@ -134,19 +142,28 @@ export function PaperAnalyzerPage({
     if (!activePaper || !analysis) return;
     const md = [
       `# ${activePaper.title}`,
-      `Authors: ${activePaper.authors.join(", ") || "Not detected"}`,
-      `Year: ${activePaper.publicationYear || "Not detected"}`,
+      activePaper.authors?.length
+        ? `Authors: ${activePaper.authors.join(", ")}`
+        : "",
+      activePaper.publicationYear
+        ? `Year: ${activePaper.publicationYear}`
+        : "",
       "",
       ...ANALYSIS_SECTIONS.map(
         (s) => `## ${s.label}\n\n${String(analysis[s.key] || "")}\n`
       ),
-    ].join("\n");
+    ]
+      .filter(Boolean)
+      .join("\n");
 
     const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `${activePaper.title.replace(/[^a-z0-9]+/gi, "_")}_Analysis.md`;
+    a.download = `${activePaper.title.replace(
+      /[^a-z0-9]+/gi,
+      "_"
+    )}_Analysis.md`;
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -161,9 +178,10 @@ export function PaperAnalyzerPage({
               Upload Research Paper (PDF)
             </h2>
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Extracts text, bibliographic metadata, and creates 768-d vector embeddings for RAG Q&amp;A. Max 15 MB.
+              Extracts text, title, abstract, and indexes document chunks for AI analysis and RAG chat.
             </p>
           </div>
+
           {papers.length > 0 && (
             <div className="flex items-center gap-2">
               <label
@@ -222,7 +240,7 @@ export function PaperAnalyzerPage({
             <div className="flex flex-col items-center gap-2 py-2">
               <Loader2 className="h-6 w-6 animate-spin text-blue-600" />
               <p className="text-sm font-medium text-slate-800 dark:text-slate-200">
-                Extracting text, detecting metadata &amp; generating vector embeddings...
+                Extracting text, detecting metadata &amp; indexing chunks...
               </p>
             </div>
           ) : (
@@ -250,7 +268,7 @@ export function PaperAnalyzerPage({
         )}
       </section>
 
-      {/* Active Paper Metadata & 11-Section Analysis */}
+      {/* Active Paper Info & Structured Analysis Sections */}
       {activePaper && (
         <section className="space-y-5">
           <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 shadow-xs">
@@ -265,21 +283,14 @@ export function PaperAnalyzerPage({
                   <span>{activePaper.pageCount} pages</span>
                   <span>·</span>
                   <span>{activePaper.chunkCount} chunks</span>
-                  {activePaper.publicationYear && (
-                    <>
-                      <span>·</span>
-                      <span>Year: {activePaper.publicationYear}</span>
-                    </>
-                  )}
+                  <span>·</span>
+                  <span>
+                    {new Date(activePaper.uploadDate).toLocaleDateString()}
+                  </span>
                 </div>
-                {activePaper.authors.length > 0 && (
+                {activePaper.authors?.length > 0 && (
                   <p className="mt-2 text-xs text-slate-600 dark:text-slate-400">
                     Authors: {activePaper.authors.join(", ")}
-                  </p>
-                )}
-                {activePaper.keywords.length > 0 && (
-                  <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                    Keywords: {activePaper.keywords.join(" · ")}
                   </p>
                 )}
                 {activePaper.abstract && (
@@ -311,7 +322,7 @@ export function PaperAnalyzerPage({
                       ? "Analyzing Paper..."
                       : analysis
                       ? "Re-run Analysis"
-                      : "Analyze Paper with AI"}
+                      : "Analyze Paper"}
                   </span>
                 </button>
 
@@ -346,7 +357,8 @@ export function PaperAnalyzerPage({
             <div className="grid gap-4 md:grid-cols-2">
               {ANALYSIS_SECTIONS.map((sec) => {
                 const value = String(analysis[sec.key] || "");
-                const isFullWidth = sec.key === "overview" || sec.key === "conclusion";
+                const isFullWidth =
+                  sec.key === "overview" || sec.key === "futureScope";
                 return (
                   <div
                     key={sec.key}
@@ -382,10 +394,10 @@ export function PaperAnalyzerPage({
             <div className="rounded-xl border border-dashed border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 p-10 text-center">
               <FileSearch className="mx-auto h-7 w-7 text-slate-400" />
               <p className="mt-3 text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Ready to generate structured 11-section analysis
+                Ready to generate structured paper analysis
               </p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Click &ldquo;Analyze Paper with AI&rdquo; above to extract overview, problem statement, objectives, methodology, algorithms, datasets, results, and limitations.
+                Click &ldquo;Analyze Paper&rdquo; above to extract abstract, problem statement, objectives, methodology, algorithms, results, advantages, limitations, conclusion, and future scope.
               </p>
             </div>
           )}

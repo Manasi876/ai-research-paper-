@@ -7,14 +7,18 @@ import {
   MessageSquarePlus,
   Send,
   Trash2,
+  Upload,
 } from "lucide-react";
 import { useToast } from "../context/ToastContext";
 import { api } from "../services/api";
 
 const SUGGESTED_QUESTIONS = [
-  "What is the core problem and proposed solution in this paper?",
-  "Which datasets and evaluation metrics were used in experiments?",
-  "What limitations or future work do the authors explicitly note?",
+  "What is the main objective of this paper?",
+  "Which algorithm is used?",
+  "What problem does this research solve?",
+  "Explain the proposed methodology.",
+  "What are the limitations of this research?",
+  "What is the future scope?",
 ];
 
 function SourceChunksBox({ sources }) {
@@ -30,7 +34,11 @@ function SourceChunksBox({ sources }) {
       >
         <BookOpen className="h-3.5 w-3.5" />
         <span>Source Excerpts ({sources.length})</span>
-        {open ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+        {open ? (
+          <ChevronUp className="h-3.5 w-3.5" />
+        ) : (
+          <ChevronDown className="h-3.5 w-3.5" />
+        )}
       </button>
 
       {open && (
@@ -44,7 +52,7 @@ function SourceChunksBox({ sources }) {
                 <span>
                   Chunk #{s.chunkIndex + 1} · ~Page {s.pageEstimate}
                 </span>
-                <span>Score: {s.score.toFixed(4)}</span>
+                <span>Similarity: {s.score.toFixed(4)}</span>
               </div>
               <p className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
                 {s.content}
@@ -64,7 +72,8 @@ export function PaperChatPage({
   onGoUpload,
 }) {
   const { showToast } = useToast();
-  const activePaper = papers.find((p) => p.id === selectedPaperId) ?? papers[0] ?? null;
+  const activePaper =
+    papers.find((p) => p.id === selectedPaperId) ?? papers[0] ?? null;
 
   const [conversations, setConversations] = useState([]);
   const [activeConvId, setActiveConvId] = useState(null);
@@ -169,14 +178,15 @@ export function PaperChatPage({
           No papers uploaded yet
         </p>
         <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Upload a PDF in the Paper Analyzer first to start a RAG conversation.
+          Upload a PDF in the Paper Analyzer first to start asking questions.
         </p>
         <button
           type="button"
           onClick={onGoUpload}
-          className="mt-4 inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-xs font-semibold text-white hover:bg-blue-700"
+          className="mt-4 inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg btn-brand-gradient px-4 text-xs font-semibold"
         >
-          Go to Paper Analyzer
+          <Upload className="h-4 w-4" />
+          <span>Go to Paper Analyzer</span>
         </button>
       </div>
     );
@@ -187,10 +197,14 @@ export function PaperChatPage({
       {/* Paper & Conversations Column */}
       <div className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col gap-4 h-fit lg:h-[calc(100vh-11rem)]">
         <div>
-          <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
+          <label
+            htmlFor="chat-paper-select"
+            className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5"
+          >
             Selected Paper
           </label>
           <select
+            id="chat-paper-select"
             value={activePaper?.id || ""}
             onChange={(e) => onSelectPaper(e.target.value)}
             className="h-10 w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 text-xs font-medium text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:outline-none"
@@ -273,23 +287,23 @@ export function PaperChatPage({
 
         <div className="flex-1 overflow-y-auto p-5 space-y-4">
           {!activeConv || activeConv.messages.length === 0 ? (
-            <div className="py-6 space-y-5">
+            <div className="py-4 space-y-5">
               <div>
                 <h3 className="font-display text-base font-semibold text-slate-900 dark:text-slate-100">
                   Ask anything about this research paper
                 </h3>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-xl">
-                  Questions are embedded with Gemini and matched against vector chunks from the PDF. If the paper does not contain the answer, the assistant explicitly reports that it was not found.
+                  Questions are matched against indexed PDF chunks via semantic similarity search. Answers are grounded strictly in the uploaded document with page estimates and source excerpts.
                 </p>
               </div>
-              <div className="grid gap-2.5 sm:grid-cols-3">
+              <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
                 {SUGGESTED_QUESTIONS.map((q) => (
                   <button
                     key={q}
                     type="button"
                     disabled={sending}
                     onClick={() => void handleSend(q)}
-                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-blue-600"
+                    className="rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-3 text-left text-xs font-medium text-slate-700 dark:text-slate-300 hover:border-blue-400 dark:hover:border-blue-600 transition-colors"
                   >
                     {q}
                   </button>
@@ -344,7 +358,7 @@ export function PaperChatPage({
                 void handleSend(question);
               }
             }}
-            placeholder="Ask a question about methodology, results, or citations..."
+            placeholder="Ask a question about objectives, algorithms, methodology, or limitations..."
             className="min-h-[42px] max-h-28 flex-1 resize-none rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3.5 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:border-blue-600 focus:bg-white dark:focus:bg-slate-900 focus:outline-none"
           />
           <button

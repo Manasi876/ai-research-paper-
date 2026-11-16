@@ -1,35 +1,15 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import crypto from "node:crypto";
 import { Router } from "express";
 import multer from "multer";
+import {
+  deletePaper,
+  getPaper,
+  listPapers,
+  uploadPaper,
+} from "../controllers/paperController.js";
 import { requireAuth } from "../middleware/auth.js";
-import {
-  extractPdfText,
-  splitTextIntoChunks,
-  PdfValidationError,
-} from "../services/chunker.js";
-import {
-  buildLocalEmbedding,
-  embedBatch,
-  extractBibliographicMetadata,
-  extractLocalMetadata,
-  hasGeminiApiKey,
-} from "../services/geminiService.js";
-import {
-  deletePaperForUser,
-  getPaperForUser,
-  listPapersByUser,
-  logActivity,
-  savePaperWithChunks,
-  updatePaperForUser,
-} from "../services/dataStore.js";
+import { PdfValidationError } from "../services/chunker.js";
 
 const MAX_FILE_SIZE_BYTES = 15 * 1024 * 1024; // 15 MB
-const UPLOADS_DIR = process.env.VERCEL
-  ? path.join(os.tmpdir(), "ai-research-uploads")
-  : path.resolve(process.cwd(), "server", "uploads");
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -38,7 +18,12 @@ const upload = multer({
     const isPdfMime = file.mimetype === "application/pdf";
     const isPdfExt = file.originalname.toLowerCase().endsWith(".pdf");
     if (!isPdfMime && !isPdfExt) {
-      cb(new PdfValidationError("Invalid file type. Only PDF files (.pdf) are accepted.", 400));
+      cb(
+        new PdfValidationError(
+          "Invalid file type. Only PDF files (.pdf) are accepted.",
+          400
+        )
+      );
       return;
     }
     cb(null, true);
@@ -48,71 +33,8 @@ const upload = multer({
 const router = Router();
 router.use(requireAuth);
 
-// GET /api/papers - List authenticated user's uploaded papers
-router.get("/", async (req, res, next) => {
-  try {
-    const papers = await listPapersByUser(req.auth.userId);
-    res.json({ papers });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// GET /api/papers/:id - Get single paper metadata (and optional text)
-router.get("/:id", async (req, res, next) => {
-  try {
-    const includeText = req.query.includeText === "true";
-    const paper = await getPaperForUser(
-      req.auth.userId,
-      String(req.params.id),
-      includeText
-    );
-    if (!paper) {
-      res.status(404).json({ error: "Research paper not found." });
-      return;
-    }
-    res.json({ paper });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// PATCH /api/papers/:id - Update bookmark, project assignment, or verified metadata
-router.patch("/:id", async (req, res, next) => {
-  try {
-    const patch = {};
-    if (typeof req.body?.isBookmarked === "boolean") {
-      patch.isBookmarked = req.body.isBookmarked;
-    }
-    if (Array.isArray(req.body?.projectIds)) {
-      patch.projectIds = req.body.projectIds.map(String);
-    }
-    if (typeof req.body?.title === "string" && req.body.title.trim()) {
-      patch.title = req.body.title.trim();
-    }
-    if (Array.isArray(req.body?.authors)) {
-      patch.authors = req.body.authors.map(String).filter(Boolean);
-    }
-    if (typeof req.body?.publicationYear === "string") {
-      patch.publicationYear = req.body.publicationYear.trim();
-    }
-
-    const updated = await updatePaperForUser(
-      req.auth.userId,
-      String(req.params.id),
-      patch
-    );
-    if (!updated) {
-      res.status(404).json({ error: "Research paper not found." });
-      return;
-    }
-    res.json({ paper: updated });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /api/papers/upload - Upload PDF, extract text & metadata, chunk, embed, store
+router.get("/", listPapers);
+router.get("/:id", getPaper);
 router.post(
   "/upload",
   (req, res, next) => {
@@ -134,110 +56,8 @@ router.post(
       next();
     });
   },
-  async (req, res, next) => {
-    try {
-      const userId = req.auth.userId;
-      if (!req.file) {
-        res.status(400).json({ error: "No PDF file provided." });
-        return;
-      }
-
-      const parsed = await extractPdfText(req.file.buffer, req.file.originalname);
-      const chunks = splitTextIntoChunks(parsed.text, parsed.pageCount, 900, 160);
-      if (chunks.length === 0) {
-        res.status(422).json({ error: "Could not extract readable chunks from this PDF." });
-        return;
-      }
-
-      // Persist file locally under server/uploads/<uuid>.pdf
-      if (!fs.existsSync(UPLOADS_DIR)) {
-        fs.mkdirSync(UPLOADS_DIR, { recursive: true });
-      }
-      const storedName = `${crypto.randomUUID()}.pdf`;
-      const storedPath = path.join(UPLOADS_DIR, storedName);
-      fs.writeFileSync(storedPath, req.file.buffer);
-      const fileUrl = `/uploads/${storedName}`;
-
-      // Extract metadata + generate embeddings (gracefully fall back if GEMINI_API_KEY is missing/unavailable)
-      let metadata = extractLocalMetadata(parsed.title, parsed.text);
-      let embeddings = chunks.map((c) => buildLocalEmbedding(c.content));
-      let embeddingSource = "local";
-      let warning = null;
-
-      if (hasGeminiApiKey()) {
-        const [metaRes, embedRes] = await Promise.allSettled([
-          extractBibliographicMetadata(parsed.title, parsed.text),
-          embedBatch(chunks.map((c) => c.content)),
-        ]);
-
-        if (metaRes.status === "fulfilled") {
-          metadata = metaRes.value;
-        }
-        if (embedRes.status === "fulfilled") {
-          embeddings = embedRes.value;
-          embeddingSource = "gemini";
-        } else {
-          const aiMsg =
-            embedRes.reason instanceof Error
-              ? embedRes.reason.message
-              : String(embedRes.reason);
-          console.warn(`[papers/upload] Gemini embedding fallback used: ${aiMsg}`);
-          warning =
-            "Paper uploaded and indexed locally. Gemini embeddings were skipped because GEMINI_API_KEY was unavailable or rate-limited.";
-        }
-      } else {
-        warning =
-          "Paper uploaded and indexed locally. Add GEMINI_API_KEY in Settings > Secrets (or .env / Vercel Env Vars) to enable AI analysis & Q&A.";
-      }
-
-      const paper = await savePaperWithChunks({
-        userId,
-        title: metadata.title || parsed.title,
-        fileName: req.file.originalname,
-        fileSize: req.file.size,
-        pageCount: parsed.pageCount,
-        fileUrl,
-        extractedText: parsed.text,
-        authors: metadata.authors,
-        abstract: metadata.abstract,
-        keywords: metadata.keywords,
-        publicationYear: metadata.publicationYear,
-        chunks,
-        embeddings,
-        embeddingSource,
-      });
-
-      await logActivity(userId, "Uploaded paper", paper.title);
-      res.status(201).json({ paper, ...(warning ? { warning } : {}) });
-    } catch (err) {
-      next(err);
-    }
-  }
+  uploadPaper
 );
-
-// DELETE /api/papers/:id
-router.delete("/:id", async (req, res, next) => {
-  try {
-    const userId = req.auth.userId;
-    const deleted = await deletePaperForUser(userId, String(req.params.id));
-    if (!deleted) {
-      res.status(404).json({ error: "Research paper not found." });
-      return;
-    }
-
-    if (deleted.fileUrl && deleted.fileUrl.startsWith("/uploads/")) {
-      const fileName = path.basename(deleted.fileUrl);
-      const localPath = path.join(UPLOADS_DIR, fileName);
-      if (fs.existsSync(localPath)) {
-        fs.unlinkSync(localPath);
-      }
-    }
-
-    await logActivity(userId, "Deleted paper", deleted.title);
-    res.json({ deleted: true, id: deleted.id });
-  } catch (err) {
-    next(err);
-  }
-});
+router.delete("/:id", deletePaper);
 
 export default router;

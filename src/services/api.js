@@ -35,7 +35,7 @@ async function request(url, options = {}, isFormData = false) {
   try {
     data = await res.json();
   } catch {
-    // non-JSON response
+    // Non-JSON response body
   }
 
   if (!res.ok) {
@@ -54,7 +54,10 @@ async function request(url, options = {}, isFormData = false) {
 }
 
 export const api = {
-  // Auth
+  // System health
+  health: () => request("/api/health"),
+
+  // Authentication
   register: (payload) =>
     request("/api/auth/register", {
       method: "POST",
@@ -69,26 +72,16 @@ export const api = {
 
   me: () => request("/api/auth/me"),
 
-  forgotPassword: (email) =>
-    request("/api/auth/forgot-password", {
-      method: "POST",
-      body: JSON.stringify({ email }),
-    }),
-
-  // Profile
-  getProfile: () => request("/api/users/profile"),
-
   updateProfile: (payload) =>
     request("/api/users/profile", {
       method: "PUT",
       body: JSON.stringify(payload),
     }),
 
-  // Dashboard
-  getDashboardSummary: () => request("/api/dashboard/summary"),
-
-  // Papers
+  // Research Papers
   listPapers: () => request("/api/papers"),
+
+  getPaper: (id) => request(`/api/papers/${encodeURIComponent(id)}`),
 
   uploadPaper: (file) => {
     const form = new FormData();
@@ -100,18 +93,12 @@ export const api = {
     );
   },
 
-  updatePaper: (id, patch) =>
-    request(`/api/papers/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify(patch),
-    }),
-
   deletePaper: (id) =>
     request(`/api/papers/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
 
-  // AI Tools
+  // Core Feature 1: AI Research Paper Analysis
   getPaperAnalysis: (paperId) =>
     request(`/api/ai/analyze/${encodeURIComponent(paperId)}`),
 
@@ -121,12 +108,14 @@ export const api = {
       body: JSON.stringify({ refresh }),
     }),
 
+  // Core Feature 2: AI Research Paper Summarizer
   summarizePaper: (paperId, format) =>
     request(`/api/ai/summarize/${encodeURIComponent(paperId)}`, {
       method: "POST",
       body: JSON.stringify({ format }),
     }),
 
+  // Core Feature 3: Chat with Research Paper (RAG)
   listConversations: (paperId) =>
     request(`/api/ai/chat/${encodeURIComponent(paperId)}`),
 
@@ -143,81 +132,4 @@ export const api = {
       )}`,
       { method: "DELETE" }
     ),
-
-  comparePapers: (paperIds) =>
-    request("/api/ai/compare", {
-      method: "POST",
-      body: JSON.stringify({ paperIds }),
-    }),
-
-  findResearchGaps: (paperIds) =>
-    request("/api/ai/research-gaps", {
-      method: "POST",
-      body: JSON.stringify({ paperIds }),
-    }),
-
-  generateQuestions: (paperId, payload) =>
-    request(`/api/ai/generate-questions/${encodeURIComponent(paperId)}`, {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  generateCitations: (paperId, metadata) =>
-    request(`/api/ai/citations/${encodeURIComponent(paperId)}`, {
-      method: "POST",
-      body: JSON.stringify({ metadata }),
-    }),
-
-  generatePresentation: (paperId) =>
-    request(`/api/ai/generate-presentation/${encodeURIComponent(paperId)}`, {
-      method: "POST",
-    }),
-
-  getAiHistory: (paperId) =>
-    request(
-      paperId
-        ? `/api/ai/history?paperId=${encodeURIComponent(paperId)}`
-        : "/api/ai/history"
-    ),
-
-  // Discovery
-  searchScholarly: (q, source = "all") =>
-    request(
-      `/api/research/search?q=${encodeURIComponent(q)}&source=${encodeURIComponent(
-        source
-      )}`
-    ),
-
-  saveDiscoveredPaper: (paperMetadata) =>
-    request("/api/research/save", {
-      method: "POST",
-      body: JSON.stringify({ paperMetadata, source: paperMetadata.source }),
-    }),
-
-  listSavedPapers: () => request("/api/research/saved"),
-
-  deleteSavedPaper: (id) =>
-    request(`/api/research/saved/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
-
-  // Projects
-  listProjects: () => request("/api/projects"),
-
-  createProject: (payload) =>
-    request("/api/projects", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    }),
-
-  updateProject: (id, patch) =>
-    request(`/api/projects/${encodeURIComponent(id)}`, {
-      method: "PUT",
-      body: JSON.stringify(patch),
-    }),
-
-  deleteProject: (id) =>
-    request(`/api/projects/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    }),
 };

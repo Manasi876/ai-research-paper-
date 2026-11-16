@@ -642,6 +642,17 @@ export async function countAnalysesByUser(userId) {
   return store.analyses.filter((a) => a.userId === userId).length;
 }
 
+export async function listAnalyzedPaperIdsByUser(userId) {
+  if (isMongoConnected()) {
+    const docs = await PaperAnalysisModel.find({ userId }).select("paperId").lean();
+    return docs.map((d) => String(d.paperId));
+  }
+  const store = readLocalStore();
+  return store.analyses
+    .filter((a) => a.userId === userId)
+    .map((a) => String(a.paperId));
+}
+
 export async function listConversationsForPaper(userId, paperId) {
   if (isMongoConnected()) {
     if (!mongoose.Types.ObjectId.isValid(paperId)) return [];
