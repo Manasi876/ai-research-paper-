@@ -1,0 +1,6 @@
+{
+  "name": "AI Research Paper Assistant",
+  "description": "Upload research paper PDFs and ask grounded questions powered by RAG, vector search, and Gemini.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
